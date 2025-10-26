@@ -6,13 +6,10 @@ import FormData from "form-data";
 
 const router = express.Router();
 
-// ✅ Custom HTTPS Agent for legacy SSL servers (only for trusted targets)
+// ✅ Fixed HTTPS agent — works in Node 18–22+
 const httpsAgent = new https.Agent({
-  rejectUnauthorized: false, // ⚠️ Only use if target is trusted
-  secureOptions:
-    tls.constants.SSL_OP_LEGACY_SERVER_CONNECT |
-    tls.constants.SSL_OP_ALLOW_UNSAFE_LEGACY_RENEGOTIATION |
-    tls.constants.SSL_OP_NO_SSLv3,
+  rejectUnauthorized: false,
+  secureOptions: 0x4, // legacy renegotiation allowed
 });
 
 // ✅ Helper function to send POST request safely

@@ -64,7 +64,7 @@ router.post("/", async (req, res) => {
     const response = await axios.post(url, form, {
       headers: form.getHeaders(),
       httpsAgent,
-      timeout: 15000, // 15s timeout
+      timeout: 60000, // 15s timeout
     });
 
     return res.json({

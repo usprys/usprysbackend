@@ -1,17 +1,38 @@
-// routes/bsid.js
 import express from "express";
 import axios from "axios";
 import https from "https";
+import tls from "tls";
 import FormData from "form-data";
 
 const router = express.Router();
 
-// Create HTTPS agent to handle SSL/TLS issues (only if trusted source)
+// ✅ Custom HTTPS Agent for legacy SSL servers (only for trusted targets)
 const httpsAgent = new https.Agent({
-  rejectUnauthorized: false, // ⚠️ Only use if target site is trusted
-  secureOptions: 0x4, // Allow legacy renegotiation
+  rejectUnauthorized: false, // ⚠️ Only use if target is trusted
+  secureOptions:
+    tls.constants.SSL_OP_LEGACY_SERVER_CONNECT |
+    tls.constants.SSL_OP_ALLOW_UNSAFE_LEGACY_RENEGOTIATION |
+    tls.constants.SSL_OP_NO_SSLv3,
 });
 
+// ✅ Helper function to send POST request safely
+const fetchStudentData = async (url, form) => {
+  const startTime = Date.now();
+  const response = await axios.post(url, form, {
+    headers: form.getHeaders(),
+    httpsAgent,
+    timeout: 30000, // 30s to handle slow SSL handshake
+  });
+
+  // Check if it took too long (network or SSL issues)
+  if (Date.now() - startTime > 20000) {
+    throw new Error("Request timed out or SSL handshake too slow.");
+  }
+
+  return response.data;
+};
+
+// ✅ Main route
 router.post("/", async (req, res) => {
   try {
     const {
@@ -24,7 +45,6 @@ router.post("/", async (req, res) => {
       dob,
     } = req.body;
 
-    // Build form data
     const form = new FormData();
     form.append("ci_csrf_token", "");
     form.append("pass_out_status_id", "1");
@@ -61,22 +81,24 @@ router.post("/", async (req, res) => {
         });
     }
 
-    const response = await axios.post(url, form, {
-      headers: form.getHeaders(),
-      httpsAgent,
-      timeout: 60000, // 15s timeout
-    });
+    const data = await fetchStudentData(url, form);
 
     return res.json({
       success: true,
-      data: response.data,
+      data,
     });
   } catch (error) {
-    console.error("POST request failed:", error.message);
+    console.error("POST request failed:", {
+      message: error.message,
+      code: error.code,
+      stack: error.stack,
+    });
+
     return res.status(500).json({
       success: false,
       message:
-        error.message || "Failed to fetch data due to SSL or network issue.",
+        error.message ||
+        "Failed to fetch data due to SSL, timeout, or network issue.",
     });
   }
 });
